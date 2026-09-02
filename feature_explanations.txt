@@ -1,0 +1,19 @@
+Online Shoppers Purchasing Intention - Feature Explanations:
+
+- Administrative: Number of pages visited by the visitor in the administrative account management category.
+- Administrative Duration: Total amount of time (in seconds) spent by the visitor on administrative pages.
+- Informational: Number of informational pages (such as customer service, contact, or about pages) visited.
+- Informational Duration: Total amount of time (in seconds) spent on informational pages.
+- ProductRelated: Number of product-related pages browsed by the user.
+- ProductRelated Duration: Total amount of time (in seconds) spent browsing product pages.
+- BounceRates: Average bounce rate percentage for the pages visited by the visitor (percentage of visitors who enter the site and leave without triggering any other requests).
+- ExitRates: Average exit rate percentage for the specific pages viewed (percentage of pageviews that were the last in the session).
+- PageValues: Average value for a web page that a user visited before completing an e-commerce transaction (reflects how much a page contributes to a sale).
+- SpecialDay: Closeness of the site visiting time to a specific special day (e.g., Mother's Day, Valentine's Day) where sessions are more likely to be finalized with transaction purchases (valued from 0 up to 1).
+- OperatingSystems: The operating system of the visitor (represented by an encoded category ID).
+- Browser: The web browser used by the visitor (represented by an encoded category ID).
+- Region: The geographic region from which the session originated.
+- TrafficType: The traffic source or campaign channel category that brought the visitor to the store.
+- Weekend: Boolean flag indicating whether the session occurred on a weekend (True or False).
+- Month Columns (Month_Dec, Month_Feb, etc.): One-hot encoded columns indicating the specific calendar month of the session.
+- VisitorType Columns (VisitorType_Other, VisitorType_Returning_Visitor): One-hot encoded categories describing whether the user is a returning customer, new visitor, or other type.
