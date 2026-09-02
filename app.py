@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 from xgboost import XGBClassifier
-from pathlib import Path
+from pathlib import Path 
 
 # Set page layout and title
 st.set_page_config(
