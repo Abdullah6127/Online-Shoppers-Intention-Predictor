@@ -431,7 +431,10 @@ elif page == "📊 Data Exploration":
         # Interactive filters for the exploration view
         filter_col1, filter_col2 = st.columns(2)
         with filter_col1:
-            month_options = ["All"] + sorted(df["Month"].dropna().astype(str).unique().tolist())
+            month_order = ["Feb", "Mar", "May", "June", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            available_months = df["Month"].dropna().astype(str).unique().tolist()
+            ordered_months = [month for month in month_order if month in available_months]
+            month_options = ["All"] + ordered_months
             selected_month = st.selectbox("Filter by Month", month_options)
         with filter_col2:
             visitor_options = ["All"] + sorted(df["VisitorType"].dropna().astype(str).unique().tolist())
