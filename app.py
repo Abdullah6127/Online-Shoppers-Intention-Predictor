@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import joblib
 import plotly.express as px
@@ -177,6 +178,164 @@ def load_data():
         return pd.read_csv(data_path)
     return None
 
+def render_hover_pie(fig):
+    """Render a pie chart with a smooth, animated hover slice."""
+    plot_html = fig.to_html(
+        full_html=False,
+        include_plotlyjs="cdn",
+        config={"displaylogo": False, "responsive": True}
+    )
+    hover_script = """
+    <script>
+    (() => {
+        const attachHoverEffect = () => {
+            const plot = document.querySelector(".plotly-graph-div");
+            if (
+                !plot ||
+                !window.Plotly ||
+                typeof plot.on !== "function" ||
+                plot.dataset.smoothHoverAttached
+            ) {
+                return Boolean(plot && plot.dataset.smoothHoverAttached);
+            }
+
+            plot.dataset.smoothHoverAttached = "true";
+            let activeSlice = null;
+            let activeTraceIndex = null;
+            let activePointNumber = null;
+            let hoverTimer = null;
+            let unhoverTimer = null;
+            let pendingHover = null;
+
+            const animationOptions = {
+                mode: "immediate",
+                fromcurrent: true,
+                transition: {
+                    duration: 600,
+                    easing: "cubic-in-out"
+                },
+                frame: {
+                    duration: 600,
+                    redraw: true
+                }
+            };
+
+            const animatePull = (traceIndex, pointNumber, amount) => {
+                const trace = plot.data[traceIndex];
+                const sliceCount = (trace.labels || trace.values || []).length;
+                if (!sliceCount) return;
+
+                const pull = Array(sliceCount).fill(0);
+                if (pointNumber !== null) pull[pointNumber] = amount;
+
+                // Plotly's animation engine makes the slice movement smooth
+                // instead of redrawing it abruptly with restyle().
+                Plotly.animate(
+                    plot,
+                    {data: [{pull: pull}]},
+                    animationOptions
+                );
+            };
+
+            const cancelHoverTimers = () => {
+                if (hoverTimer) {
+                    window.clearTimeout(hoverTimer);
+                    hoverTimer = null;
+                }
+                if (unhoverTimer) {
+                    window.clearTimeout(unhoverTimer);
+                    unhoverTimer = null;
+                }
+                pendingHover = null;
+            };
+
+            const clearSlice = () => {
+                cancelHoverTimers();
+                if (activeTraceIndex !== null) {
+                    animatePull(activeTraceIndex, null, 0);
+                }
+                if (activeSlice) activeSlice.style.filter = "";
+                activeSlice = null;
+                activeTraceIndex = null;
+                activePointNumber = null;
+            };
+
+            plot.on("plotly_hover", (event) => {
+                const point = event.points && event.points[0];
+                if (!point) return;
+                if (unhoverTimer) {
+                    window.clearTimeout(unhoverTimer);
+                    unhoverTimer = null;
+                }
+
+                const hoveredElement = event.event && event.event.target;
+                const sliceFromEvent = hoveredElement && hoveredElement.closest
+                    ? hoveredElement.closest(".slice")
+                    : null;
+                const slices = plot.querySelectorAll(".trace.pie .slice");
+                const slice = sliceFromEvent || slices[point.pointNumber];
+                if (!slice) return;
+
+                if (
+                    activeTraceIndex === point.curveNumber &&
+                    activePointNumber === point.pointNumber
+                ) {
+                    return;
+                }
+
+                const hoverKey = `${point.curveNumber}:${point.pointNumber}`;
+                if (pendingHover && pendingHover.key === hoverKey) return;
+
+                // A tiny debounce prevents Plotly from rapidly switching
+                // between two slices when the pointer rests exactly on
+                // their shared boundary.
+                pendingHover = {
+                    key: hoverKey,
+                    slice: slice,
+                    traceIndex: point.curveNumber,
+                    pointNumber: point.pointNumber
+                };
+                if (hoverTimer) window.clearTimeout(hoverTimer);
+                hoverTimer = window.setTimeout(() => {
+                    if (!pendingHover || pendingHover.key !== hoverKey) return;
+
+                    const nextHover = pendingHover;
+                    pendingHover = null;
+                    hoverTimer = null;
+                    if (activeTraceIndex !== null) {
+                        animatePull(activeTraceIndex, null, 0);
+                    }
+                    if (activeSlice) activeSlice.style.filter = "";
+
+                    activeSlice = nextHover.slice;
+                    activeTraceIndex = nextHover.traceIndex;
+                    activePointNumber = nextHover.pointNumber;
+                    activeSlice.style.filter =
+                        "drop-shadow(0 0 7px rgba(124, 115, 230, 0.70)) " +
+                        "drop-shadow(0 0 14px rgba(176, 38, 255, 0.35))";
+                    animatePull(activeTraceIndex, activePointNumber, 0.10);
+                }, 120);
+            });
+
+            plot.on("plotly_unhover", () => {
+                if (unhoverTimer) window.clearTimeout(unhoverTimer);
+                unhoverTimer = window.setTimeout(clearSlice, 120);
+            });
+            return true;
+        };
+
+        if (!attachHoverEffect()) {
+            const observer = new MutationObserver(() => {
+                if (attachHoverEffect()) observer.disconnect();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            window.setTimeout(attachHoverEffect, 250);
+        }
+    })();
+    </script>
+    """
+    components.html(plot_html + hover_script, height=450, scrolling=False)
+
 try:
     model, model_features = load_artifacts()
 except Exception as e:
@@ -330,20 +489,20 @@ elif page == "📊 Data Exploration":
                 # Smooth Plotly Donut Chart
                 fig1 = px.pie(target_counts, names='Status', values='Count', hole=0.55, 
                               color_discrete_sequence=['#b026ff', '#00f0ff'])
-                fig1.update_layout(margin=dict(t=20, b=20, l=20, r=20), 
+                fig1.update_layout(margin=dict(t=30, b=30, l=120, r=120), 
                                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                                    font=dict(color="#e2e8f0"),
                                    hovermode="closest",
                                    hoverlabel=dict(
                                        bgcolor="#111a33",
-                                       bordercolor="#00e5ff",
+                                       bordercolor="#7c73e6",
                                        font=dict(color="#ffffff", size=14)
                                    ))
                 fig1.update_traces(
                     hovertemplate="<b>%{label}</b><br>Sessions: %{value:,}<br>Share: %{percent}<extra></extra>",
                     marker=dict(line=dict(color="#0a1020", width=2))
                 )
-                st.plotly_chart(fig1, use_container_width=True)
+                render_hover_pie(fig1)
                 
             with col2:
                 st.subheader("Visitor Type Distribution")
@@ -353,7 +512,7 @@ elif page == "📊 Data Exploration":
                 # Smooth Plotly Donut Chart
                 fig2 = px.pie(visitor_counts, names='Visitor Type', values='Count', hole=0.55,
                               color_discrete_sequence=neon_palette)
-                fig2.update_layout(margin=dict(t=20, b=20, l=20, r=20), 
+                fig2.update_layout(margin=dict(t=30, b=30, l=120, r=120), 
                                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                                    font=dict(color="#e2e8f0"),
                                    hovermode="closest",
@@ -366,7 +525,7 @@ elif page == "📊 Data Exploration":
                     hovertemplate="<b>%{label}</b><br>Sessions: %{value:,}<br>Share: %{percent}<extra></extra>",
                     marker=dict(line=dict(color="#0a1020", width=2))
                 )
-                st.plotly_chart(fig2, use_container_width=True)
+                render_hover_pie(fig2)
                 
             st.markdown("---")
             st.subheader("Data Summary Statistics")
@@ -381,15 +540,15 @@ elif page == "🔮 Predictor":
     st.markdown("---")
     st.write("Predict whether a website visitor will complete a transaction (`Revenue = True`).")
 
+    if "predictor_reset_counter" not in st.session_state:
+        st.session_state.predictor_reset_counter = 0
+
     def reset_predictor_inputs():
-        predictor_keys = [
-            "admin_page_views", "admin_duration", "info_page_views", "info_duration",
-            "product_page_views", "product_duration", "bounce_rate", "exit_rate",
-            "page_values", "special_day", "operating_systems", "browser", "region",
-            "traffic_type", "month", "visitor_type", "weekend"
-        ]
-        for key in predictor_keys:
-            st.session_state.pop(key, None)
+        # Changing the widget-key namespace makes Streamlit rebuild every
+        # input with its default value, including the visible widget values.
+        st.session_state.predictor_reset_counter += 1
+
+    widget_key_suffix = st.session_state.predictor_reset_counter
 
     reset_col, _ = st.columns([1, 4])
     with reset_col:
@@ -407,42 +566,42 @@ elif page == "🔮 Predictor":
         st.markdown("<br>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            admin = st.number_input("Administrative Page Views", min_value=0, max_value=50, value=2, key="admin_page_views")
-            admin_duration = st.number_input("Administrative Duration (s)", min_value=0.0, value=80.0, key="admin_duration")
-            info = st.number_input("Informational Page Views", min_value=0, max_value=50, value=0, key="info_page_views")
-            info_duration = st.number_input("Informational Duration (s)", min_value=0.0, value=0.0, key="info_duration")
+            admin = st.number_input("Administrative Page Views", min_value=0, max_value=50, value=2, key=f"admin_page_views_{widget_key_suffix}")
+            admin_duration = st.number_input("Administrative Duration (s)", min_value=0.0, value=80.0, key=f"admin_duration_{widget_key_suffix}")
+            info = st.number_input("Informational Page Views", min_value=0, max_value=50, value=0, key=f"info_page_views_{widget_key_suffix}")
+            info_duration = st.number_input("Informational Duration (s)", min_value=0.0, value=0.0, key=f"info_duration_{widget_key_suffix}")
         with col2:
-            product = st.number_input("Product Related Page Views", min_value=0, max_value=1000, value=30, key="product_page_views")
-            product_duration = st.number_input("Product Related Duration (s)", min_value=0.0, value=1100.0, key="product_duration")
+            product = st.number_input("Product Related Page Views", min_value=0, max_value=1000, value=30, key=f"product_page_views_{widget_key_suffix}")
+            product_duration = st.number_input("Product Related Duration (s)", min_value=0.0, value=1100.0, key=f"product_duration_{widget_key_suffix}")
 
     with sub_tab2:
         st.markdown("<br>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            bounce_rate = st.slider("Bounce Rate", min_value=0.0, max_value=0.2, value=0.01, step=0.001, key="bounce_rate")
-            exit_rate = st.slider("Exit Rate", min_value=0.0, max_value=0.2, value=0.03, step=0.001, key="exit_rate")
+            bounce_rate = st.slider("Bounce Rate", min_value=0.0, max_value=0.2, value=0.01, step=0.001, key=f"bounce_rate_{widget_key_suffix}")
+            exit_rate = st.slider("Exit Rate", min_value=0.0, max_value=0.2, value=0.03, step=0.001, key=f"exit_rate_{widget_key_suffix}")
         with col2:
-            page_values = st.number_input("Page Value", min_value=0.0, max_value=400.0, value=6.0, key="page_values")
-            special_day = st.selectbox("Special Day Closeness", options=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0], index=0, key="special_day")
+            page_values = st.number_input("Page Value", min_value=0.0, max_value=400.0, value=6.0, key=f"page_values_{widget_key_suffix}")
+            special_day = st.selectbox("Special Day Closeness", options=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0], index=0, key=f"special_day_{widget_key_suffix}")
 
     with sub_tab3:
         st.markdown("<br>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            operating_systems = st.selectbox("Operating System ID", options=list(range(1, 9)), index=1, key="operating_systems")
-            browser = st.selectbox("Browser ID", options=list(range(1, 14)), index=1, key="browser")
+            operating_systems = st.selectbox("Operating System ID", options=list(range(1, 9)), index=1, key=f"operating_systems_{widget_key_suffix}")
+            browser = st.selectbox("Browser ID", options=list(range(1, 14)), index=1, key=f"browser_{widget_key_suffix}")
         with col2:
-            region = st.selectbox("Region ID", options=list(range(1, 10)), index=2, key="region")
-            traffic_type = st.selectbox("Traffic Type ID", options=list(range(1, 21)), index=1, key="traffic_type")
+            region = st.selectbox("Region ID", options=list(range(1, 10)), index=2, key=f"region_{widget_key_suffix}")
+            traffic_type = st.selectbox("Traffic Type ID", options=list(range(1, 21)), index=1, key=f"traffic_type_{widget_key_suffix}")
 
     with sub_tab4:
         st.markdown("<br>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            month = st.selectbox("Month", options=['Feb', 'Mar', 'May', 'June', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], index=2, key="month")
-            visitor_type = st.selectbox("Visitor Type", options=['Returning_Visitor', 'New_Visitor', 'Other'], index=0, key="visitor_type")
+            month = st.selectbox("Month", options=['Feb', 'Mar', 'May', 'June', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], index=2, key=f"month_{widget_key_suffix}")
+            visitor_type = st.selectbox("Visitor Type", options=['Returning_Visitor', 'New_Visitor', 'Other'], index=0, key=f"visitor_type_{widget_key_suffix}")
         with col2:
-            weekend = st.selectbox("Weekend Visit", options=[False, True], index=0, key="weekend")
+            weekend = st.selectbox("Weekend Visit", options=[False, True], index=0, key=f"weekend_{widget_key_suffix}")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
